@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: dockerfiles/app.dockerfile
+    volumes:
+      - ..:/workspace:cached
+    environment:
+      DATABASE_URI: postgresql://postgres:postgres@db/web
+      DATABASE_URI_TEST: postgresql://postgres:postgres@db/web_test
+      REDIS_URL: redis://redis:6379
+    command: sleep infinity
+    network_mode: service:db
+    depends_on:
+      - db
+      - redis
+
+  db:
+    build:
+      context: ..
+      dockerfile: dockerfiles/db.dockerfile
+    restart: unless-stopped
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+
+  rqworker:
+    build:
+      context: ..
+      dockerfile: dockerfiles/app.dockerfile
+    command: rq worker --url redis://redis:6379 --with-scheduler
+    depends_on:
+      - redis
+    environment:
+      DATABASE_URI: postgresql://postgres:postgres@db/web
+      DATABASE_URI_TEST: postgresql://postgres:postgres@db/web_test
+      REDIS_URL: redis://redis:6379
+    networks:
+      - default
+
+volumes:
+  postgres-data:
+
+
+networks:
+  default:
+    driver: bridge
